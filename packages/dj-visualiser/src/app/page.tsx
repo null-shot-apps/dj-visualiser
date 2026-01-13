@@ -12,13 +12,30 @@ export default function DJVisualizer() {
 
   const startVisualizer = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setError(null);
       
-      const audioContext = new AudioContext();
+      // Check if getUserMedia is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Your browser does not support microphone access');
+      }
+      
+      console.log('Requesting microphone access...');
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        } 
+      });
+      
+      console.log('Microphone access granted');
+      
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       const analyser = audioContext.createAnalyser();
       const source = audioContext.createMediaStreamSource(stream);
       
       analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.8;
       source.connect(analyser);
       
       audioContextRef.current = audioContext;
@@ -27,9 +44,21 @@ export default function DJVisualizer() {
       setIsActive(true);
       setError(null);
       animate();
-    } catch (err) {
-      setError('Microphone access denied. Please allow microphone access to use the visualizer.');
+    } catch (err: any) {
       console.error('Error accessing microphone:', err);
+      let errorMessage = 'Could not access microphone. ';
+      
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        errorMessage += 'Please allow microphone access in your browser settings.';
+      } else if (err.name === 'NotFoundError') {
+        errorMessage += 'No microphone found on your device.';
+      } else if (err.name === 'NotSupportedError') {
+        errorMessage += 'Your browser does not support microphone access.';
+      } else {
+        errorMessage += err.message || 'Unknown error occurred.';
+      }
+      
+      setError(errorMessage);
     }
   };
 
@@ -197,4 +226,5 @@ export default function DJVisualizer() {
     </div>
   );
 }
+
 
